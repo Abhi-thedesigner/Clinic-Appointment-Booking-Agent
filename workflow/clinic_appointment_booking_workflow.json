@@ -1,0 +1,2577 @@
+{
+  "name": "Clinic Appointment Booking – WhatsApp, Telegram, Sheets & Calendar",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "2881705f-59f0-457b-a907-3560c251c3cd",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        640
+      ],
+      "webhookId": "f3bed0df-59f7-4197-97ee-2bc3a4344e77"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "be44ad2f-44be-448d-aaf0-f83172ba35a4",
+              "leftValue": "={{ $json.messages ? $json.messages[0].from : '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "df431173-7b62-49af-a6e5-c6f8174797cc",
+      "name": "Only User Messages",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b882c40f-05c2-4be5-89d4-4bfdbeda250f",
+              "name": "phone",
+              "value": "={{ $json.messages[0].from }}",
+              "type": "string"
+            },
+            {
+              "id": "ee3daa91-f6a0-4f70-81af-443fb76720ab",
+              "name": "sessionKey",
+              "value": "={{ 'wa_' + $json.messages[0].from }}",
+              "type": "string"
+            },
+            {
+              "id": "e872b2a7-25ab-461c-8d48-5e0bff34aab7",
+              "name": "text",
+              "value": "={{ ($json.messages[0].text && $json.messages[0].text.body ? $json.messages[0].text.body : '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "5384d1fc-27e3-4567-aff0-06f35560e4ba",
+              "name": "waName",
+              "value": "={{ $json.contacts && $json.contacts[0] ? $json.contacts[0].profile.name : 'there' }}",
+              "type": "string"
+            },
+            {
+              "id": "e4b24c0d-ef77-46b3-94ae-7aa68b3816ab",
+              "name": "phoneNumberId",
+              "value": "={{ $json.metadata.phone_number_id }}",
+              "type": "string"
+            },
+            {
+              "id": "cd428ed7-3ca9-414e-a5d6-3961cba8d2bd",
+              "name": "clinicName",
+              "value": "Sunrise Care Clinic",
+              "type": "string"
+            },
+            {
+              "id": "3491b1a2-be2a-43b5-aefe-3d2b37ea2bc5",
+              "name": "timezone",
+              "value": "Asia/Kolkata",
+              "type": "string"
+            },
+            {
+              "id": "3d052f3e-9caa-4590-bcf6-b0ba48d0da13",
+              "name": "welcomeStickerUrl",
+              "value": "https://YOUR-DOMAIN/stickers/welcome.webp",
+              "type": "string"
+            },
+            {
+              "id": "9e169af8-860e-4a39-b8b5-1aa389067899",
+              "name": "thanksStickerUrl",
+              "value": "https://YOUR-DOMAIN/stickers/thanks.webp",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "6a73c153-3f44-4dad-9faa-f8092f84ae8c",
+      "name": "Normalize Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sessions",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "sessionKey",
+              "lookupValue": "={{ $json.sessionKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "035846c6-a196-4463-9581-5eafa333d52c",
+      "name": "Get Session",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        640
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reads the patient's WhatsApp reply according to the step they are on.\nconst msg = $('Normalize Message').first().json;\nconst session = $input.all().map(i => i.json).find(r => r && r.sessionKey) || {};\nconst TZ = msg.timezone || 'Asia/Kolkata';\n\nconst DEPARTMENTS = [\n  { code: 'GEN', name: 'General Medicine', icon: '🩺' },\n  { code: 'CAR', name: 'Cardiology', icon: '❤️' },\n  { code: 'DER', name: 'Dermatology', icon: '🧴' },\n  { code: 'ORT', name: 'Orthopedics', icon: '🦴' },\n  { code: 'PED', name: 'Pediatrics', icon: '👶' },\n  { code: 'GYN', name: 'Gynecology & Obstetrics', icon: '🤰' },\n  { code: 'ENT', name: 'ENT (Ear, Nose, Throat)', icon: '👂' },\n  { code: 'OPH', name: 'Ophthalmology', icon: '👁️' },\n  { code: 'NEU', name: 'Neurology', icon: '🧠' },\n  { code: 'GAS', name: 'Gastroenterology', icon: '🍽️' },\n  { code: 'DEN', name: 'Dentistry', icon: '🦷' },\n  { code: 'PSY', name: 'Psychiatry', icon: '💭' },\n  { code: 'URO', name: 'Urology', icon: '💧' },\n  { code: 'PUL', name: 'Pulmonology', icon: '🫁' },\n  { code: 'END', name: 'Endocrinology', icon: '🦋' },\n];\nconst ILLNESSES = [\n  { icon: '🤒', name: 'Fever / Cold / Flu' },\n  { icon: '🤕', name: 'Pain or Injury' },\n  { icon: '🧴', name: 'Skin problem' },\n  { icon: '🍽️', name: 'Stomach / Digestion' },\n  { icon: '🫁', name: 'Breathing / Chest issue' },\n  { icon: '🩺', name: 'Routine check-up' },\n  { icon: '🔁', name: 'Follow-up visit' },\n];\nconst SLOTS = [\n  { label: 'Morning 09:00 AM - 11:00 AM', start: '09:00', end: '11:00' },\n  { label: 'Late Morning 11:00 AM - 01:00 PM', start: '11:00', end: '13:00' },\n  { label: 'Afternoon 04:00 PM - 06:00 PM', start: '16:00', end: '18:00' },\n  { label: 'Evening 06:00 PM - 08:00 PM', start: '18:00', end: '20:00' },\n];\n\n// Next 6 open days (Sundays closed)\nconst DAYS = [];\nlet cursor = DateTime.now().setZone(TZ).startOf('day');\nwhile (DAYS.length < 6) {\n  cursor = cursor.plus({ days: 1 });\n  if (cursor.weekday === 7) continue;\n  DAYS.push({\n    day: cursor.toFormat('cccc'),\n    date: cursor.toFormat('yyyy-MM-dd'),\n    label: cursor.toFormat('cccc, dd LLL yyyy'),\n  });\n}\n\nconst menus = {\n  dept: DEPARTMENTS.map((d, i) => `*${i + 1}.* ${d.icon} ${d.name}`).join('\\n'),\n  illness: ILLNESSES.map((d, i) => `*${i + 1}.* ${d.icon} ${d.name}`).join('\\n'),\n  day: DAYS.map((d, i) => `*${i + 1}.* 📅 ${d.label}`).join('\\n'),\n  time: SLOTS.map((s, i) => `*${i + 1}.* ⏰ ${s.label}`).join('\\n'),\n};\nconst PROMPTS = {\n  NAME: '👤 Please type your *full name* (letters only).',\n  AGE: '🎂 Please enter your *age in years* (for example: 34).',\n  DEPARTMENT: `🏥 Please reply with a number *1-${DEPARTMENTS.length}*:\\n\\n${menus.dept}`,\n  ILLNESS: `🤒 Reply with a number *1-${ILLNESSES.length}*, or simply type your concern:\\n\\n${menus.illness}`,\n  DAY: `📅 Please reply with a number *1-${DAYS.length}*:\\n\\n${menus.day}`,\n  TIME: `⏰ Please reply with a number *1-${SLOTS.length}*:\\n\\n${menus.time}`,\n  CONFIRM: '✅ Reply *1* to Confirm or *2* to Cancel.',\n};\n\nconst text = (msg.text || '').trim();\nconst lower = text.toLowerCase();\nconst RESTART = ['hi', 'hii', 'hello', 'hey', 'hai', 'start', 'menu', 'restart', 'book', 'appointment', 'book appointment'];\n\nlet step = session.step || 'START';\nif (step === 'DONE' || RESTART.includes(lower)) step = 'START';\n\nconst n = /^\\d{1,3}$/.test(text) ? parseInt(text, 10) : NaN;\nlet route = step;\nlet pick = {};\n\nswitch (step) {\n  case 'NAME':\n    if (/^[\\p{L}][\\p{L} .'-]{1,59}$/u.test(text)) {\n      pick.name = text.replace(/\\s+/g, ' ').split(' ')\n        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');\n    } else route = 'INVALID';\n    break;\n  case 'AGE':\n    if (n >= 0 && n <= 120) pick.age = n; else route = 'INVALID';\n    break;\n  case 'DEPARTMENT':\n    if (n >= 1 && n <= DEPARTMENTS.length) {\n      pick.departmentCode = DEPARTMENTS[n - 1].code;\n      pick.department = DEPARTMENTS[n - 1].name;\n    } else route = 'INVALID';\n    break;\n  case 'ILLNESS':\n    if (n >= 1 && n <= ILLNESSES.length) pick.illness = ILLNESSES[n - 1].name;\n    else if (isNaN(n) && /^[\\p{L}][\\p{L}0-9 ,.'()\\/-]{2,80}$/u.test(text)) pick.illness = text;\n    else route = 'INVALID';\n    break;\n  case 'DAY':\n    if (n >= 1 && n <= DAYS.length) {\n      pick.day = DAYS[n - 1].day; pick.date = DAYS[n - 1].date; pick.dateLabel = DAYS[n - 1].label;\n    } else route = 'INVALID';\n    break;\n  case 'TIME':\n    if (n >= 1 && n <= SLOTS.length) {\n      pick.timeSlot = SLOTS[n - 1].label; pick.timeStart = SLOTS[n - 1].start; pick.timeEnd = SLOTS[n - 1].end;\n    } else route = 'INVALID';\n    break;\n  case 'CONFIRM':\n    if (['1', 'yes', 'y', 'confirm'].includes(lower)) route = 'CONFIRM_YES';\n    else if (['2', 'no', 'n', 'cancel'].includes(lower)) route = 'CONFIRM_NO';\n    else route = 'INVALID';\n    break;\n  default:\n    route = 'START';\n}\n\nconst carried = {};\nfor (const k of ['name', 'age', 'departmentCode', 'department', 'illness', 'day', 'date', 'dateLabel', 'timeSlot', 'timeStart', 'timeEnd']) {\n  carried[k] = session[k] ?? '';\n}\n\nreturn [{ json: {\n  ...msg,\n  ...carried,\n  step,\n  route,\n  pick,\n  menus,\n  retryPrompt: `⚠️ Sorry, I didn't catch that.\\n\\n${PROMPTS[step] || PROMPTS.NAME}`,\n} }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "e66333d2-b37a-4657-8cd8-1476fa941974",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "dc2133e8-047b-4545-841c-0b381d8ae687",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "START",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "START"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b3c1c982-3e39-476a-8c38-05f20e33819a",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "NAME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NAME"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c5cdf423-4bd5-4216-9399-df369f8bff32",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "AGE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "AGE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "37c5f020-8797-4724-a6e8-13beaafa419f",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DEPARTMENT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DEPARTMENT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ca991f3a-5b00-4f48-8a78-98478770438c",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ILLNESS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ILLNESS"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "90de666c-b906-40db-a2ca-419d976159ae",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DAY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DAY"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cedb5814-1959-4279-9ee3-268ebf03849b",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "TIME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "TIME"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cdf1ebd2-fee9-47ed-8ad0-214f0a5a797c",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "CONFIRM_YES",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CONFIRM_YES"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c3903438-9ef4-4a18-a192-f52afe6fb8d2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "CONFIRM_NO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CONFIRM_NO"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "97a41d0c-1319-4996-9fec-14560a683f8e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "INVALID",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INVALID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c95d6936-7504-48f7-b1b6-c440797e2452",
+      "name": "Route by Step",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Parse Input').first().json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $('Parse Input').first().json.phone, type: 'sticker', sticker: { link: $('Parse Input').first().json.welcomeStickerUrl } }) }}",
+        "options": {}
+      },
+      "id": "5afbd147-0ebb-405a-8236-85f307863d5f",
+      "name": "Send Welcome Sticker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d2b37021-4ecd-4633-849d-270755eeb2f5",
+              "name": "phone",
+              "value": "={{ $('Parse Input').first().json.phone }}",
+              "type": "string"
+            },
+            {
+              "id": "071f410c-8452-4ba3-ac8b-2e5588941944",
+              "name": "sessionKey",
+              "value": "={{ $('Parse Input').first().json.sessionKey }}",
+              "type": "string"
+            },
+            {
+              "id": "24bb37b2-9518-4e74-a785-f189658097d7",
+              "name": "phoneNumberId",
+              "value": "={{ $('Parse Input').first().json.phoneNumberId }}",
+              "type": "string"
+            },
+            {
+              "id": "3238ea89-f871-40dc-b19b-2eb7870301c8",
+              "name": "nextStep",
+              "value": "NAME",
+              "type": "string"
+            },
+            {
+              "id": "f336b4aa-bc31-446a-a37e-b2e96d822c7b",
+              "name": "name",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "b5523b47-9cc9-436e-8f8e-91b21befc6d5",
+              "name": "age",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "7612a4aa-2305-48be-9ee2-41341a123a8f",
+              "name": "departmentCode",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "dee5f589-80d6-4915-a9b8-9410edfb3ba1",
+              "name": "department",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "faa6abd5-c403-4d4b-865e-eaeb95f8dd6a",
+              "name": "illness",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "fa7e7b81-12ed-4cc1-913d-2437fedf7e00",
+              "name": "day",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "f2073095-4ee3-450a-89ff-5ee47dfa2bbf",
+              "name": "date",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "49586ef3-39be-456a-bd43-70d3b9164394",
+              "name": "dateLabel",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "ce0e3327-bb84-42a6-8b04-efce4d93c47a",
+              "name": "timeSlot",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "dd349769-48a6-469a-8e25-d2ca7e190103",
+              "name": "timeStart",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "f9037461-b6ab-4189-ad29-ae20c90b5396",
+              "name": "timeEnd",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "26a77781-df67-41c7-b183-655c8c265db4",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "72d84be7-a53c-482a-b133-358d72a44c29",
+              "name": "reply",
+              "value": "=🌿✨ *Welcome to {{ $('Parse Input').first().json.clinicName }}* ✨🌿\n\nHello *{{ $('Parse Input').first().json.waName }}*! 👋 We're delighted to look after you today. 💙\n\nBooking your appointment takes just a minute ⏱️\n1️⃣ Your details\n2️⃣ Department & concern\n3️⃣ Day, date & time\n4️⃣ Your personal token number 🎟️\n\n💡 _Type *menu* at any time to start over._\n\nLet's begin! 😊\n👤 *May I have your full name, please?*",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "a1aba86a-5f77-4cdc-90d9-35ae1557d279",
+      "name": "Welcome & Ask Name",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "98dc3058-278c-465c-866d-b232cdb71ba2",
+              "name": "name",
+              "value": "={{ $json.pick.name }}",
+              "type": "string"
+            },
+            {
+              "id": "a320fc40-cc62-432a-9f93-f11428a0f283",
+              "name": "nextStep",
+              "value": "AGE",
+              "type": "string"
+            },
+            {
+              "id": "1410456d-8330-4387-b54a-51de1f0b21cb",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "4a728a3a-87c4-4469-966b-0def34e9d7cf",
+              "name": "reply",
+              "value": "=😊 Lovely to meet you, *{{ $json.pick.name }}*!\n\n🎂 Next, may I know your *age* (in years)?",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8c3c5593-94b1-49fe-98c1-f30f2cc09f68",
+      "name": "Select Name",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        170
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6e1d0bab-ed12-4c02-b531-3bb7f39dc5f5",
+              "name": "age",
+              "value": "={{ $json.pick.age }}",
+              "type": "number"
+            },
+            {
+              "id": "d9e7c223-4af3-4848-8008-6a6aaed8e714",
+              "name": "nextStep",
+              "value": "DEPARTMENT",
+              "type": "string"
+            },
+            {
+              "id": "2aa287c2-65cf-4bb5-9a23-b7c188e90258",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "69deb9e8-be97-4cf7-963b-4f7f1e3e8126",
+              "name": "reply",
+              "value": "=👍 Thank you! Age noted: *{{ $json.pick.age }}*\n\n🏥 Which *department* would you like to visit? Reply with a number:\n\n{{ $json.menus.dept }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "7b37b92e-2d3e-4b8a-ad40-9a0fe6c3a502",
+      "name": "Select Age",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "66a291b8-978a-4c37-a8d4-2e0ae2884372",
+              "name": "departmentCode",
+              "value": "={{ $json.pick.departmentCode }}",
+              "type": "string"
+            },
+            {
+              "id": "5e1a3547-6649-45ef-9b3e-6304e27588b6",
+              "name": "department",
+              "value": "={{ $json.pick.department }}",
+              "type": "string"
+            },
+            {
+              "id": "343d8339-33e1-4b46-9cd4-504e7a11c4d4",
+              "name": "nextStep",
+              "value": "ILLNESS",
+              "type": "string"
+            },
+            {
+              "id": "7c44c058-183c-4de0-bc17-8ef92ad06efa",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "7bc4e79b-3219-43a7-9bac-4a3784b821c4",
+              "name": "reply",
+              "value": "=✅ *{{ $json.pick.department }}* selected.\n\n🤒 What is your *concern / illness*? Reply with a number, or simply type it:\n\n{{ $json.menus.illness }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8f0788ee-d567-47a4-90bd-f9da7bbd78e9",
+      "name": "Select Department",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        510
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fd7af5aa-d720-4327-9424-4ef464d1c778",
+              "name": "illness",
+              "value": "={{ $json.pick.illness }}",
+              "type": "string"
+            },
+            {
+              "id": "73a21d28-f040-44e7-9bf5-5f02dca007a6",
+              "name": "nextStep",
+              "value": "DAY",
+              "type": "string"
+            },
+            {
+              "id": "182b615f-e4a6-4209-8e8b-f655752707c8",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "8b01ed2b-1f72-49ba-8737-c3308058a1dd",
+              "name": "reply",
+              "value": "=📝 Noted: *{{ $json.pick.illness }}*\n\n📅 Please choose your preferred *day & date*:\n\n{{ $json.menus.day }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d63acce4-aae1-4020-8586-033b4eafa2ae",
+      "name": "Select Illness",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1a1dedb6-cda3-45c1-8352-bfe0960e6396",
+              "name": "day",
+              "value": "={{ $json.pick.day }}",
+              "type": "string"
+            },
+            {
+              "id": "cbd40e4c-aab1-4741-8d72-76602bbdb45e",
+              "name": "date",
+              "value": "={{ $json.pick.date }}",
+              "type": "string"
+            },
+            {
+              "id": "6b5614a5-cc30-4c8a-a958-9eafb04d3071",
+              "name": "dateLabel",
+              "value": "={{ $json.pick.dateLabel }}",
+              "type": "string"
+            },
+            {
+              "id": "7f76856c-7552-4146-bca8-e812d7d4e084",
+              "name": "nextStep",
+              "value": "TIME",
+              "type": "string"
+            },
+            {
+              "id": "81cd0498-308e-400f-94d4-cbcf403727b8",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "6489ec2c-7c24-4359-83e0-d5e9a6b2b2a9",
+              "name": "reply",
+              "value": "=📅 *{{ $json.pick.dateLabel }}* — wonderful!\n\n⏰ Choose a convenient *time slot*:\n\n{{ $json.menus.time }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8376618b-a1fa-4c6e-8c34-c9a40ecda9d4",
+      "name": "Select Day & Date",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5094f04-6399-429a-8ee4-7e45a220192d",
+              "name": "timeSlot",
+              "value": "={{ $json.pick.timeSlot }}",
+              "type": "string"
+            },
+            {
+              "id": "da7b4ce1-4b16-4aca-953c-cccf49053fb7",
+              "name": "timeStart",
+              "value": "={{ $json.pick.timeStart }}",
+              "type": "string"
+            },
+            {
+              "id": "31212c3a-ce12-45d1-b721-441b951920f2",
+              "name": "timeEnd",
+              "value": "={{ $json.pick.timeEnd }}",
+              "type": "string"
+            },
+            {
+              "id": "17b07a69-873f-440f-ba6c-3bc388cc565b",
+              "name": "nextStep",
+              "value": "CONFIRM",
+              "type": "string"
+            },
+            {
+              "id": "d54e2eee-da42-4f28-b1a3-ab419733e3db",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "a506e33c-cddb-4c14-9551-fa68ffc1dec3",
+              "name": "reply",
+              "value": "=📋 *Please review your booking*\n\n👤 Name: {{ $json.name }}\n🎂 Age: {{ $json.age }}\n🏥 Department: {{ $json.department }}\n🤒 Concern: {{ $json.illness }}\n📅 Date: {{ $json.dateLabel }}\n⏰ Time: {{ $json.pick.timeSlot }}\n\nReply *1* ✅ to Confirm   |   *2* ❌ to Cancel",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "1c0600b2-6240-4d2f-aca8-f0815704afe0",
+      "name": "Select Time Slot",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa914385-59be-4242-bf9a-f4761aae5ec1",
+              "name": "nextStep",
+              "value": "DONE",
+              "type": "string"
+            },
+            {
+              "id": "06e6334a-832e-4fd5-97ac-e5054eb4f010",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "a2f2f53a-671f-4478-8234-d019edb6db15",
+              "name": "reply",
+              "value": "=No problem at all 💙 Your booking has been cancelled.\n\nWhenever you're ready, just type *menu* and I'll help you book again. 🌼",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "2a402b62-f11e-49d5-b1e6-acf2e2089347",
+      "name": "Booking Cancelled",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        1190
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5a0e9685-c04d-4f93-afc2-4a256bb15ae2",
+              "name": "nextStep",
+              "value": "={{ $json.step }}",
+              "type": "string"
+            },
+            {
+              "id": "629831fb-6d1d-4822-b6f9-0e86ef177cb8",
+              "name": "updatedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "f6df507a-80e4-40c7-8307-020078c845c5",
+              "name": "reply",
+              "value": "={{ $json.retryPrompt }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "e90502be-eb98-4f36-a9fb-326a44a87a3f",
+      "name": "Invalid Input Reply",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1680,
+        1360
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4a865eac-2c1b-481e-bbaf-b7c45bfa1845",
+      "name": "Reply Payload",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1960,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sessions",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sessionKey": "={{ $json.sessionKey }}",
+            "phone": "={{ $json.phone }}",
+            "step": "={{ $json.nextStep }}",
+            "name": "={{ $json.name }}",
+            "age": "={{ $json.age }}",
+            "departmentCode": "={{ $json.departmentCode }}",
+            "department": "={{ $json.department }}",
+            "illness": "={{ $json.illness }}",
+            "day": "={{ $json.day }}",
+            "date": "={{ $json.date }}",
+            "dateLabel": "={{ $json.dateLabel }}",
+            "timeSlot": "={{ $json.timeSlot }}",
+            "timeStart": "={{ $json.timeStart }}",
+            "timeEnd": "={{ $json.timeEnd }}",
+            "updatedAt": "={{ $json.updatedAt }}"
+          },
+          "matchingColumns": [
+            "sessionKey"
+          ],
+          "schema": [
+            {
+              "id": "sessionKey",
+              "displayName": "sessionKey",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "step",
+              "displayName": "step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "age",
+              "displayName": "age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "departmentCode",
+              "displayName": "departmentCode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "department",
+              "displayName": "department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "illness",
+              "displayName": "illness",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "day",
+              "displayName": "day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "dateLabel",
+              "displayName": "dateLabel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timeSlot",
+              "displayName": "timeSlot",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timeStart",
+              "displayName": "timeStart",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timeEnd",
+              "displayName": "timeEnd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "d611bd15-2c4a-421e-bc09-f8c9e6020374",
+      "name": "Save Session",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2220,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('Reply Payload').first().json.phoneNumberId }}",
+        "recipientPhoneNumber": "={{ $('Reply Payload').first().json.phone }}",
+        "messageType": "text",
+        "textBody": "={{ $('Reply Payload').first().json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "e066bc49-5d3f-4438-abcd-edf03455fa86",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        2480,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Appointments",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "tokenKey",
+              "lookupValue": "={{ $json.departmentCode + '-' + $json.date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1c9688e7-48b4-4532-a0e9-39dbc2870834",
+      "name": "Count Today's Tokens",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1420,
+        1500
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Token = DEPT-DDMM-SEQ, numbered per department per day.\nconst p = $('Parse Input').first().json;\nconst TZ = p.timezone || 'Asia/Kolkata';\nconst existing = $input.all().map(i => i.json).filter(r => r && r.token);\nconst seq = existing.length + 1;\nconst date = String(p.date);\nconst day = DateTime.fromISO(date, { zone: TZ });\nconst token = `${p.departmentCode}-${day.toFormat('ddLL')}-${String(seq).padStart(3, '0')}`;\nconst start = DateTime.fromISO(`${date}T${p.timeStart}`, { zone: TZ });\nconst end = DateTime.fromISO(`${date}T${p.timeEnd}`, { zone: TZ });\nreturn [{ json: {\n  token,\n  seq,\n  tokenKey: `${p.departmentCode}-${date}`,\n  startISO: start.toISO(),\n  endISO: end.toISO(),\n} }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "0a691cfb-80bf-46f9-b845-2a22894d1687",
+      "name": "Generate Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "76eecabb-1f10-42ed-9959-10a5d51dd05a",
+              "name": "patientName",
+              "value": "={{ $('Parse Input').first().json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "0795eede-de49-4ea6-9bcc-a96ab6ab9c9d",
+              "name": "age",
+              "value": "={{ $('Parse Input').first().json.age }}",
+              "type": "number"
+            },
+            {
+              "id": "e38905c2-405d-4eac-b19c-bdff3f32b261",
+              "name": "phone",
+              "value": "={{ $('Parse Input').first().json.phone }}",
+              "type": "string"
+            },
+            {
+              "id": "70aa8fc6-f2cf-4fc1-8b10-5ebaac581192",
+              "name": "phoneNumberId",
+              "value": "={{ $('Parse Input').first().json.phoneNumberId }}",
+              "type": "string"
+            },
+            {
+              "id": "c44f95f2-a038-48cf-a11d-609f4f32a057",
+              "name": "clinicName",
+              "value": "={{ $('Parse Input').first().json.clinicName }}",
+              "type": "string"
+            },
+            {
+              "id": "2a564457-19f2-47b9-a11f-451ee9be264f",
+              "name": "thanksStickerUrl",
+              "value": "={{ $('Parse Input').first().json.thanksStickerUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "e0fd6561-190f-47bb-b5b7-6ae9989c62b4",
+              "name": "department",
+              "value": "={{ $('Parse Input').first().json.department }}",
+              "type": "string"
+            },
+            {
+              "id": "6adcbc30-a401-4038-bbba-b4c7e8c83f16",
+              "name": "departmentCode",
+              "value": "={{ $('Parse Input').first().json.departmentCode }}",
+              "type": "string"
+            },
+            {
+              "id": "8efe5d58-4316-4aed-a9a6-0c0ec760f15e",
+              "name": "illness",
+              "value": "={{ $('Parse Input').first().json.illness }}",
+              "type": "string"
+            },
+            {
+              "id": "f9745f42-2962-4377-a983-98f264fd3465",
+              "name": "day",
+              "value": "={{ $('Parse Input').first().json.day }}",
+              "type": "string"
+            },
+            {
+              "id": "1b37c8b8-05f7-45d0-aae2-3f9e1fd0bd88",
+              "name": "date",
+              "value": "={{ $('Parse Input').first().json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "eed1fade-1a09-4d0f-a219-29d787c06d7a",
+              "name": "dateLabel",
+              "value": "={{ $('Parse Input').first().json.dateLabel }}",
+              "type": "string"
+            },
+            {
+              "id": "dc64fab7-c749-4444-8957-974e1774d258",
+              "name": "timeSlot",
+              "value": "={{ $('Parse Input').first().json.timeSlot }}",
+              "type": "string"
+            },
+            {
+              "id": "e91a3b23-dd05-4f5d-b5a6-06721f39e57d",
+              "name": "status",
+              "value": "Booked",
+              "type": "string"
+            },
+            {
+              "id": "8087ca69-adab-4146-9aac-47de09fee5b5",
+              "name": "bookedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "7fb4c5c4-4783-46b8-95d7-044baf9f33d1",
+              "name": "patientMessage",
+              "value": "=🎉 *Your appointment is confirmed!* 🎉\n\n🎟️ *TOKEN NUMBER: {{ $json.token }}*\n\n👤 Name: {{ $json.patientName }}\n🎂 Age: {{ $json.age }}\n📱 Phone: {{ $json.phone }}\n🏥 Department: {{ $json.department }}\n🤒 Concern: {{ $json.illness }}\n📅 Day & Date: {{ $json.dateLabel }}\n⏰ Time: {{ $json.timeSlot }}\n\n📍 Please arrive 10 minutes early and show this token at reception.",
+              "type": "string"
+            },
+            {
+              "id": "f016efdb-83b6-4740-b13e-a4da4fcbdaca",
+              "name": "thankYouMessage",
+              "value": "=🙏💙 *Thank you for choosing {{ $json.clinicName }}!* 💙🙏\n\nYour health and comfort matter deeply to us. The *{{ $json.department }}* team is ready to welcome you. 🌼\n\nWishing you a speedy recovery and a beautiful day ✨\n💡 _Need another appointment? Just type *menu*._ 😊",
+              "type": "string"
+            },
+            {
+              "id": "a677af2b-dfee-4341-980c-c70d92a5565a",
+              "name": "telegramMessage",
+              "value": "=🏥 New Appointment — {{ $json.department }}\n\n🎟 Token: {{ $json.token }}\n👤 Patient: {{ $json.patientName }}\n📅 {{ $json.dateLabel }}\n⏰ {{ $json.timeSlot }}\n\nReply /done {{ $json.token }} once the patient has been attended.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "99b0ab01-0261-4c12-b6d9-ffa883a7124e",
+      "name": "Final Booking Details",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1940,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Appointments",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "token": "={{ $json.token }}",
+            "tokenKey": "={{ $json.tokenKey }}",
+            "patientName": "={{ $json.patientName }}",
+            "age": "={{ $json.age }}",
+            "phone": "={{ $json.phone }}",
+            "department": "={{ $json.department }}",
+            "departmentCode": "={{ $json.departmentCode }}",
+            "illness": "={{ $json.illness }}",
+            "day": "={{ $json.day }}",
+            "date": "={{ $json.date }}",
+            "timeSlot": "={{ $json.timeSlot }}",
+            "status": "={{ $json.status }}",
+            "bookedAt": "={{ $json.bookedAt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "token",
+              "displayName": "token",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tokenKey",
+              "displayName": "tokenKey",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patientName",
+              "displayName": "patientName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "age",
+              "displayName": "age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "department",
+              "displayName": "department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "departmentCode",
+              "displayName": "departmentCode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "illness",
+              "displayName": "illness",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "day",
+              "displayName": "day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timeSlot",
+              "displayName": "timeSlot",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bookedAt",
+              "displayName": "bookedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "a128ed00-3209-4416-b151-9c8f6dd85cb0",
+      "name": "Save Appointment to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_CALENDAR_ID",
+          "mode": "id"
+        },
+        "start": "={{ $('Final Booking Details').first().json.startISO }}",
+        "end": "={{ $('Final Booking Details').first().json.endISO }}",
+        "additionalFields": {
+          "summary": "=🏥 {{ $('Final Booking Details').first().json.department }} – {{ $('Final Booking Details').first().json.patientName }} ({{ $('Final Booking Details').first().json.token }})",
+          "description": "=Token: {{ $('Final Booking Details').first().json.token }}\nPatient: {{ $('Final Booking Details').first().json.patientName }} ({{ $('Final Booking Details').first().json.age }} yrs)\nPhone: {{ $('Final Booking Details').first().json.phone }}\nConcern: {{ $('Final Booking Details').first().json.illness }}\nSlot: {{ $('Final Booking Details').first().json.timeSlot }}"
+        }
+      },
+      "id": "3b2c06e8-9f82-464c-b6ed-b3627e7febec",
+      "name": "Add to Google Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2460,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sessions",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sessionKey": "={{ $('Parse Input').first().json.sessionKey }}",
+            "step": "DONE",
+            "updatedAt": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "sessionKey"
+          ],
+          "schema": [
+            {
+              "id": "sessionKey",
+              "displayName": "sessionKey",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "step",
+              "displayName": "step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "4bdfbcce-bb24-4ad7-ae78-2a3a2123a5e6",
+      "name": "Close Session",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2720,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "60df17a4-d294-416b-900b-91bbf80da3ef",
+                    "leftValue": "={{ $('Final Booking Details').first().json.departmentCode }}",
+                    "rightValue": "GEN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "General Medicine"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b6a6ba7f-6930-462d-b8d8-52c8ccd6a0b8",
+                    "leftValue": "={{ $('Final Booking Details').first().json.departmentCode }}",
+                    "rightValue": "CAR",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cardiology"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "9ffa17eb-69bb-424b-9d93-e0298ec74a48",
+                    "leftValue": "={{ $('Final Booking Details').first().json.departmentCode }}",
+                    "rightValue": "DER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Dermatology"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "592669df-9384-4f32-a379-ec8eca843e0b",
+                    "leftValue": "={{ $('Final Booking Details').first().json.departmentCode }}",
+                    "rightValue": "ORT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Orthopedics"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ce3c3ed9-39b8-4df9-acaa-7ac83e49756d",
+                    "leftValue": "={{ $('Final Booking Details').first().json.departmentCode }}",
+                    "rightValue": "PED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Pediatrics"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "No Telegram alert"
+        }
+      },
+      "id": "64fdc8ec-fb20-4f3e-9889-c9c3a72812fb",
+      "name": "Route to Department",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3000,
+        1620
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_GEN_CHAT_ID",
+        "text": "={{ $('Final Booking Details').first().json.telegramMessage }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "51d886f6-939d-4c76-bb04-739292092649",
+      "name": "Telegram – General Medicine",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3330,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_CAR_CHAT_ID",
+        "text": "={{ $('Final Booking Details').first().json.telegramMessage }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e42cc336-8144-44a7-a071-a7e290a14d81",
+      "name": "Telegram – Cardiology",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3330,
+        1610
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_DER_CHAT_ID",
+        "text": "={{ $('Final Booking Details').first().json.telegramMessage }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a55cc78d-db3c-4384-a76e-802a51d751a9",
+      "name": "Telegram – Dermatology",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3330,
+        1720
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_ORT_CHAT_ID",
+        "text": "={{ $('Final Booking Details').first().json.telegramMessage }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "525252e4-aac4-4abf-a367-fb9cf6f5361f",
+      "name": "Telegram – Orthopedics",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3330,
+        1830
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_PED_CHAT_ID",
+        "text": "={{ $('Final Booking Details').first().json.telegramMessage }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3fd76d2e-9b40-46ac-818c-2c281320f689",
+      "name": "Telegram – Pediatrics",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3330,
+        1940
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('Final Booking Details').first().json.phoneNumberId }}",
+        "recipientPhoneNumber": "={{ $('Final Booking Details').first().json.phone }}",
+        "messageType": "text",
+        "textBody": "={{ $('Final Booking Details').first().json.patientMessage }}",
+        "additionalFields": {}
+      },
+      "id": "9463664a-56d2-4249-b427-feb55292252b",
+      "name": "Send Token to Patient",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        3630,
+        1620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Final Booking Details').first().json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $('Final Booking Details').first().json.phone, type: 'sticker', sticker: { link: $('Final Booking Details').first().json.thanksStickerUrl } }) }}",
+        "options": {}
+      },
+      "id": "776b3058-f5b3-4e6a-a135-02b30dee768c",
+      "name": "Send Thank-You Sticker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3890,
+        1620
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('Final Booking Details').first().json.phoneNumberId }}",
+        "recipientPhoneNumber": "={{ $('Final Booking Details').first().json.phone }}",
+        "messageType": "text",
+        "textBody": "={{ $('Final Booking Details').first().json.thankYouMessage }}",
+        "additionalFields": {}
+      },
+      "id": "47ba10ff-3e4e-44d4-a438-6b08a869a165",
+      "name": "Send Gratitude Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        4150,
+        1620
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "fe6ecddd-641d-44e2-ae67-67f6fff6f8be",
+      "name": "Telegram Trigger (Departments)",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        2060
+      ],
+      "webhookId": "b0753e9f-b45a-4953-9358-236ce035c2de"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Department staff reply:  /done CAR-0211-003\nconst m = $json.message || {};\nconst text = (m.text || '').trim();\nconst match = text.match(/^\\/done(?:@\\w+)?\\s+([A-Za-z]{3}-\\d{4}-\\d{3})$/);\nif (!match) return [];\nreturn [{ json: {\n  token: match[1].toUpperCase(),\n  chatId: m.chat.id,\n  completedBy: (m.from && m.from.first_name) || 'Staff',\n  completedAt: DateTime.now().toISO(),\n} }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "a45c922e-580f-4194-8e4c-759a06f7292b",
+      "name": "Parse Staff Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        2060
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Appointments",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "token": "={{ $json.token }}",
+            "status": "Completed",
+            "completedAt": "={{ $json.completedAt }}",
+            "completedBy": "={{ $json.completedBy }}"
+          },
+          "matchingColumns": [
+            "token"
+          ],
+          "schema": [
+            {
+              "id": "token",
+              "displayName": "token",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completedAt",
+              "displayName": "completedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completedBy",
+              "displayName": "completedBy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "aa372455-ac4d-4d1c-8405-2653a6a47fa4",
+      "name": "Mark Token Completed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        520,
+        2060
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Parse Staff Command').first().json.chatId }}",
+        "text": "=✅ Token {{ $('Parse Staff Command').first().json.token }} marked as completed. Thank you, {{ $('Parse Staff Command').first().json.completedBy }}!",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "38498c29-3615-4d51-b3f6-cf170da896b5",
+      "name": "Confirm to Staff",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        780,
+        2060
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🏥 Clinic Appointment Booking\n**WhatsApp (patients, 15 departments) → 5 departments alerted on Telegram → Google Sheets + Google Calendar**\n\n### Setup checklist\n1. Create **one Google Sheet** with two tabs (header row exactly as below):\n   - `Sessions`: sessionKey, phone, step, name, age, departmentCode, department, illness, day, date, dateLabel, timeSlot, timeStart, timeEnd, updatedAt\n   - `Appointments`: token, tokenKey, patientName, age, phone, department, departmentCode, illness, day, date, timeSlot, status, bookedAt, completedAt, completedBy\n2. Replace `YOUR_GOOGLE_SHEET_ID` in the 7 Google Sheets nodes and `YOUR_CALENDAR_ID` in the Calendar node.\n3. Credentials: WhatsApp Trigger + WhatsApp Business Cloud, Telegram API, Google Sheets OAuth2, Google Calendar OAuth2, and a **Header Auth** credential (`Authorization: Bearer <WhatsApp token>`) for the two sticker nodes.\n4. In **Normalize Message** set your clinic name, timezone and the two public `.webp` sticker URLs (512×512).\n5. In each of the 5 Telegram nodes (General Medicine, Cardiology, Dermatology, Orthopedics, Pediatrics) replace `REPLACE_WITH_XXX_CHAT_ID` with that department's group chat ID. The other 10 departments skip Telegram.\n6. Activate the workflow (webhooks only work when active).",
+        "width": 900,
+        "height": 700,
+        "color": 7
+      },
+      "id": "6a1b4d6c-e4d6-4caf-a5ee-a82fc2a5ccda",
+      "name": "Note – Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -820
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1️⃣ Intake & state\nEvery WhatsApp message is a fresh execution, so the patient's progress is kept in the **Sessions** tab. `Parse Input` validates the reply for the current step; typing *menu / hi* restarts.",
+        "width": 1100,
+        "height": 340,
+        "color": 5
+      },
+      "id": "aef184a3-798f-4a69-908d-b804b0bee5e3",
+      "name": "Note – Intake",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2️⃣ Step-by-step questions\nSwitch → one **Edit Fields** node per step stores the patient's selection (name, age, department, illness, day & date, time slot) and writes the next WhatsApp message. Edit the texts right inside those nodes.",
+        "width": 1620,
+        "height": 1700,
+        "color": 6
+      },
+      "id": "43f95504-d591-4754-b053-00d950fc477a",
+      "name": "Note – Steps",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3️⃣ Confirm → token → Sheets → Calendar\nToken format `DEPT-DDMM-001` (counts per department per day).",
+        "width": 1620,
+        "height": 420,
+        "color": 3
+      },
+      "id": "68642509-d428-4c93-afe2-98c8d349edff",
+      "name": "Note – Booking",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4️⃣ Department alerts (5 Telegram chats) → patient token + 🙏 gratitude\nSwitch on `departmentCode` sends **name + token** (plus date/time) to the right Telegram group. The other 10 departments go straight to the patient message.",
+        "width": 1300,
+        "height": 640,
+        "color": 4
+      },
+      "id": "d9b35546-0e60-4d3e-8d26-36644c4a3a1f",
+      "name": "Note – Departments",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2960,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5️⃣ Department replies on Telegram\nStaff send `/done TOKEN` in their group → status becomes *Completed* in Sheets.",
+        "width": 980,
+        "height": 340,
+        "color": 2
+      },
+      "id": "6f7a544b-8bff-4bc1-8cfe-297ac29ffa15",
+      "name": "Note – Staff",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        1900
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Only User Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only User Messages": {
+      "main": [
+        [
+          {
+            "node": "Normalize Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Message": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input": {
+      "main": [
+        [
+          {
+            "node": "Route by Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Step": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Sticker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Name",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Age",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Department",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Illness",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Day & Date",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Time Slot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Count Today's Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Booking Cancelled",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Input Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Sticker": {
+      "main": [
+        [
+          {
+            "node": "Welcome & Ask Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Welcome & Ask Name": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Name": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Age": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Department": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Illness": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Day & Date": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Time Slot": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Cancelled": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invalid Input Reply": {
+      "main": [
+        [
+          {
+            "node": "Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Payload": {
+      "main": [
+        [
+          {
+            "node": "Save Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Session": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Today's Tokens": {
+      "main": [
+        [
+          {
+            "node": "Generate Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Token": {
+      "main": [
+        [
+          {
+            "node": "Final Booking Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Booking Details": {
+      "main": [
+        [
+          {
+            "node": "Save Appointment to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Appointment to Sheets": {
+      "main": [
+        [
+          {
+            "node": "Add to Google Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Google Calendar": {
+      "main": [
+        [
+          {
+            "node": "Close Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Session": {
+      "main": [
+        [
+          {
+            "node": "Route to Department",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route to Department": {
+      "main": [
+        [
+          {
+            "node": "Telegram – General Medicine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram – Cardiology",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram – Dermatology",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram – Orthopedics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram – Pediatrics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Token to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram – General Medicine": {
+      "main": [
+        [
+          {
+            "node": "Send Token to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram – Cardiology": {
+      "main": [
+        [
+          {
+            "node": "Send Token to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram – Dermatology": {
+      "main": [
+        [
+          {
+            "node": "Send Token to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram – Orthopedics": {
+      "main": [
+        [
+          {
+            "node": "Send Token to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram – Pediatrics": {
+      "main": [
+        [
+          {
+            "node": "Send Token to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Token to Patient": {
+      "main": [
+        [
+          {
+            "node": "Send Thank-You Sticker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Thank-You Sticker": {
+      "main": [
+        [
+          {
+            "node": "Send Gratitude Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger (Departments)": {
+      "main": [
+        [
+          {
+            "node": "Parse Staff Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Staff Command": {
+      "main": [
+        [
+          {
+            "node": "Mark Token Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Token Completed": {
+      "main": [
+        [
+          {
+            "node": "Confirm to Staff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
